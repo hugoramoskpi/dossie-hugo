@@ -24,7 +24,9 @@ export function createOpenAIProvider(): AIProvider {
         temperature: 0.7,
       })
 
-      return response.choices[0]?.message?.content ?? ''
+      const content = response.choices[0]?.message?.content
+      if (!content) throw new Error('OpenAI returned empty response')
+      return content
     },
   }
 }

@@ -123,15 +123,22 @@ export function ChatInterface({ question, agent, existingAnswer, onAnswerSaved }
   const handlePrivacyChange = useCallback(async (value: PrivacyLevel) => {
     setPrivacy(value)
     if (savedAnswer) {
-      await fetch('/api/answers', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          moduleSlug: question.moduleSlug,
-          questionId: question.id,
-          privacy: value,
-        }),
-      })
+      try {
+        const res = await fetch('/api/answers', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            moduleSlug: question.moduleSlug,
+            questionId: question.id,
+            privacy: value,
+          }),
+        })
+        if (!res.ok) throw new Error(`PATCH privacy failed: ${res.status}`)
+      } catch (err) {
+        console.error('Erro ao atualizar privacidade:', err)
+        setPrivacy(savedAnswer.privacy)
+        setError('Erro ao salvar privacidade. Tente novamente.')
+      }
     }
   }, [savedAnswer, question])
 

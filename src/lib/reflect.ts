@@ -45,7 +45,17 @@ export async function reflect(
 
   try {
     const raw = await chatWithFallback(messages, agent.systemPrompt)
-    return parseReflection(raw)
+    try {
+      return parseReflection(raw)
+    } catch (parseErr) {
+      console.error('Erro ao parsear reflexão. Raw:', raw, 'Erro:', parseErr)
+      return {
+        feedback: 'Não foi possível processar a reflexão neste momento. Tente novamente.',
+        isGeneric: false,
+        hasSensitiveContent: false,
+        suggestedPrivacy: 'public',
+      }
+    }
   } catch (err) {
     console.error('Erro ao gerar reflexão:', err)
     return {

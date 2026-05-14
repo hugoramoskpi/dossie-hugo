@@ -25,7 +25,8 @@ export function createAnthropicProvider(): AIProvider {
       })
 
       const block = response.content[0]
-      return block.type === 'text' ? block.text : ''
+      if (!block || block.type !== 'text') throw new Error('Anthropic returned non-text response')
+      return block.text
     },
   }
 }
