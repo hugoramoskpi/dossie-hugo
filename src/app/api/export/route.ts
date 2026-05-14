@@ -31,7 +31,8 @@ export async function GET(request: NextRequest) {
     const synthesis = getAllSynthesis(user.id)
     const markdown = generateExport(type, answers, synthesis)
 
-    const filename = `${user.name.toLowerCase().replace(/\s+/g, '-')}-${type}-${new Date().toISOString().split('T')[0]}.md`
+    const safeName = user.name.replace(/[^a-z0-9]/gi, '-').toLowerCase().replace(/-+/g, '-').replace(/^-|-$/g, '')
+    const filename = `${safeName}-${type}-${new Date().toISOString().split('T')[0]}.md`
 
     return new NextResponse(markdown, {
       headers: {

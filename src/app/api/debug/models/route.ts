@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
-import { GoogleGenerativeAI } from '@google/generative-ai'
+import { getCurrentUser } from '@/lib/auth'
 
 export async function GET() {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+
   const apiKey = process.env.GOOGLE_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'GOOGLE_API_KEY não configurada' }, { status: 400 })
 
   try {
-    // REST direto — mais confiável que o SDK para listModels
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=50`
     )

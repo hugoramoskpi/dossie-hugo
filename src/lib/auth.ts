@@ -43,7 +43,11 @@ export async function getCurrentUser(): Promise<User | null> {
   if (!sessionId) return null
 
   const session = getSession(sessionId)
-  if (!session) return null
+  if (!session) {
+    // Session expired or invalid — clear stale cookie
+    cookieStore.delete(SESSION_COOKIE_NAME)
+    return null
+  }
 
   return getUserById(session.userId)
 }

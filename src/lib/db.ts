@@ -15,15 +15,18 @@ import type {
 const DATA_DIR = path.join(process.cwd(), 'data')
 const DB_PATH = path.join(DATA_DIR, 'dossie.db')
 
+let _db: Database.Database | null = null
+
 function getDb(): Database.Database {
+  if (_db) return _db
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true })
   }
-  const db = new Database(DB_PATH)
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
-  initSchema(db)
-  return db
+  _db = new Database(DB_PATH)
+  _db.pragma('journal_mode = WAL')
+  _db.pragma('foreign_keys = ON')
+  initSchema(_db)
+  return _db
 }
 
 function initSchema(db: Database.Database): void {
@@ -89,14 +92,12 @@ export function createUser(email: string, passwordHash: string, name: string): U
   ).run(email, passwordHash, name)
 
   const row = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid) as DbUser
-  db.close()
   return mapUser(row)
 }
 
 export function getUserByEmail(email: string): (User & { passwordHash: string }) | null {
   const db = getDb()
   const row = db.prepare('SELECT * FROM users WHERE email = ?').get(email) as DbUser | undefined
-  db.close()
   if (!row) return null
   return { ...mapUser(row), passwordHash: row.password_hash }
 }
@@ -104,7 +105,6 @@ export function getUserByEmail(email: string): (User & { passwordHash: string })
 export function getUserById(id: number): User | null {
   const db = getDb()
   const row = db.prepare('SELECT * FROM users WHERE id = ?').get(id) as DbUser | undefined
-  db.close()
   return row ? mapUser(row) : null
 }
 
@@ -115,16 +115,14 @@ export function createSessionRecord(id: string, userId: number, expiresAt: strin
   db.prepare(
     'INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)'
   ).run(id, userId, expiresAt)
-  db.close()
 }
 
 export function getSession(id: string): Session | null {
   const db = getDb()
   const row = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as DbSession | undefined
-  db.close()
   if (!row) return null
   if (new Date(row.expires_at) < new Date()) {
-    deleteSession(id)
+    db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
     return null
   }
   return { id: row.id, userId: row.user_id, expiresAt: row.expires_at }
@@ -133,7 +131,6 @@ export function getSession(id: string): Session | null {
 export function deleteSession(id: string): void {
   const db = getDb()
   db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
-  db.close()
 }
 
 // ============ ANSWERS ============
@@ -156,7 +153,6 @@ export function saveAnswer(
   const row = db.prepare(
     'SELECT * FROM answers WHERE user_id = ? AND module_slug = ? AND question_id = ?'
   ).get(userId, moduleSlug, questionId) as DbAnswer
-  db.close()
   return mapAnswer(row)
 }
 
@@ -170,7 +166,6 @@ export function updateAnswerPrivacy(
   db.prepare(
     "UPDATE answers SET privacy = ?, updated_at = datetime('now') WHERE user_id = ? AND module_slug = ? AND question_id = ?"
   ).run(privacy, userId, moduleSlug, questionId)
-  db.close()
 }
 
 export function getAnswersByModule(userId: number, moduleSlug: string): Answer[] {
@@ -178,7 +173,6 @@ export function getAnswersByModule(userId: number, moduleSlug: string): Answer[]
   const rows = db.prepare(
     'SELECT * FROM answers WHERE user_id = ? AND module_slug = ? ORDER BY created_at ASC'
   ).all(userId, moduleSlug) as DbAnswer[]
-  db.close()
   return rows.map(mapAnswer)
 }
 
@@ -187,7 +181,6 @@ export function getAllPublicAnswers(userId: number): Answer[] {
   const rows = db.prepare(
     "SELECT * FROM answers WHERE user_id = ? AND privacy != 'sensitive' ORDER BY module_slug, created_at ASC"
   ).all(userId) as DbAnswer[]
-  db.close()
   return rows.map(mapAnswer)
 }
 
@@ -196,7 +189,6 @@ export function getPublicAnswersOnly(userId: number): Answer[] {
   const rows = db.prepare(
     "SELECT * FROM answers WHERE user_id = ? AND privacy = 'public' ORDER BY module_slug, created_at ASC"
   ).all(userId) as DbAnswer[]
-  db.close()
   return rows.map(mapAnswer)
 }
 
@@ -213,7 +205,6 @@ export function saveConversationMessage(
   db.prepare(
     'INSERT INTO conversations (user_id, module_slug, question_id, role, content) VALUES (?, ?, ?, ?, ?)'
   ).run(userId, moduleSlug, questionId, role, content)
-  db.close()
 }
 
 export function getConversationHistory(
@@ -225,7 +216,6 @@ export function getConversationHistory(
   const rows = db.prepare(
     'SELECT * FROM conversations WHERE user_id = ? AND module_slug = ? AND question_id = ? ORDER BY created_at ASC'
   ).all(userId, moduleSlug, questionId) as DbConversation[]
-  db.close()
   return rows.map(mapConversation)
 }
 
@@ -238,7 +228,6 @@ export function saveSynthesis(userId: number, type: SynthesisType, content: stri
     VALUES (?, ?, ?)
     ON CONFLICT(user_id, type) DO UPDATE SET content = excluded.content, generated_at = datetime('now')
   `).run(userId, type, content)
-  db.close()
 }
 
 export function getSynthesis(userId: number, type: SynthesisType): SynthesisRecord | null {
@@ -246,7 +235,6 @@ export function getSynthesis(userId: number, type: SynthesisType): SynthesisReco
   const row = db.prepare(
     'SELECT * FROM synthesis WHERE user_id = ? AND type = ?'
   ).get(userId, type) as DbSynthesis | undefined
-  db.close()
   return row ? mapSynthesis(row) : null
 }
 
@@ -255,7 +243,6 @@ export function getAllSynthesis(userId: number): SynthesisRecord[] {
   const rows = db.prepare(
     'SELECT * FROM synthesis WHERE user_id = ? ORDER BY type ASC'
   ).all(userId) as DbSynthesis[]
-  db.close()
   return rows.map(mapSynthesis)
 }
 
@@ -264,7 +251,6 @@ export function getModuleProgress(userId: number, moduleSlug: string, totalQuest
   const result = db.prepare(
     'SELECT COUNT(*) as count FROM answers WHERE user_id = ? AND module_slug = ?'
   ).get(userId, moduleSlug) as { count: number }
-  db.close()
   const answered = result.count
   return {
     moduleSlug,
