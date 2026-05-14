@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { reflect } from '@/lib/reflect'
 import { saveConversationMessage } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { VALID_MODULE_SLUGS } from '@/lib/agents'
 import type { ChatMessage } from '@/lib/types'
 
 export async function POST(request: NextRequest) {
@@ -24,6 +25,10 @@ export async function POST(request: NextRequest) {
         { error: 'moduleSlug, questionId, questionText e answer são obrigatórios' },
         { status: 400 }
       )
+    }
+
+    if (!VALID_MODULE_SLUGS.has(moduleSlug)) {
+      return NextResponse.json({ error: 'Módulo inválido' }, { status: 400 })
     }
 
     saveConversationMessage(user.id, moduleSlug, questionId, 'user', answer.trim())

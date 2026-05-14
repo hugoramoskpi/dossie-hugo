@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAnswersByModule, saveAnswer, updateAnswerPrivacy } from '@/lib/db'
 import { getCurrentUser } from '@/lib/auth'
+import { VALID_MODULE_SLUGS } from '@/lib/agents'
 import type { PrivacyLevel } from '@/lib/types'
+
+const VALID_PRIVACY: Set<PrivacyLevel> = new Set(['public', 'private', 'sensitive'])
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser()
@@ -12,6 +15,10 @@ export async function GET(request: NextRequest) {
 
   if (!moduleSlug) {
     return NextResponse.json({ error: 'Parâmetro "module" obrigatório' }, { status: 400 })
+  }
+
+  if (!VALID_MODULE_SLUGS.has(moduleSlug)) {
+    return NextResponse.json({ error: 'Módulo inválido' }, { status: 400 })
   }
 
   try {
@@ -44,6 +51,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!VALID_MODULE_SLUGS.has(moduleSlug)) {
+      return NextResponse.json({ error: 'Módulo inválido' }, { status: 400 })
+    }
+
+    if (!VALID_PRIVACY.has(privacy)) {
+      return NextResponse.json({ error: 'Privacidade inválida' }, { status: 400 })
+    }
+
     const answer = saveAnswer(user.id, moduleSlug, questionId, content.trim(), privacy)
     return NextResponse.json({ answer }, { status: 201 })
   } catch (err) {
@@ -70,6 +85,14 @@ export async function PATCH(request: NextRequest) {
         { error: 'moduleSlug, questionId e privacy são obrigatórios' },
         { status: 400 }
       )
+    }
+
+    if (!VALID_MODULE_SLUGS.has(moduleSlug)) {
+      return NextResponse.json({ error: 'Módulo inválido' }, { status: 400 })
+    }
+
+    if (!VALID_PRIVACY.has(privacy)) {
+      return NextResponse.json({ error: 'Privacidade inválida' }, { status: 400 })
     }
 
     updateAnswerPrivacy(user.id, moduleSlug, questionId, privacy)
