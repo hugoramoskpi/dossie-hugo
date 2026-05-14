@@ -19,6 +19,9 @@ export function middleware(request: NextRequest) {
   const sessionCookie = request.cookies.get(COOKIE_NAME)?.value
 
   if (!sessionCookie && !isPublicPage) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
